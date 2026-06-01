@@ -1,0 +1,29 @@
+{
+  "block.agrieconomy.market_block":     "농업 거래소",
+  "block.agrieconomy.delivery_block":   "납품 창고",
+  "block.agrieconomy.pesticide_block":  "살충제 살포기",
+  "block.agrieconomy.irrigation_block": "관개 장치",
+  "block.agrieconomy.greenhouse_block": "온실기",
+
+  "item.agrieconomy.market_block":      "농업 거래소",
+  "item.agrieconomy.delivery_block":    "납품 창고",
+  "item.agrieconomy.pesticide_block":   "살충제 살포기",
+  "item.agrieconomy.irrigation_block":  "관개 장치",
+  "item.agrieconomy.greenhouse_block":  "온실기",
+  "item.agrieconomy.farmland_register": "농지 등록권",
+  "item.agrieconomy.admin_tool":        "관리자 도구",
+
+  "gui.agrieconomy.market":             "농업 거래소",
+  "gui.agrieconomy.delivery":           "납품 현황",
+  "gui.agrieconomy.delivery_admin":     "납품 설정 (관리자)",
+
+  "itemGroup.agrieconomy.main":         "농업 경제 모드",
+
+  "tooltip.agrieconomy.farmland_register": "우클릭: 현재 청크를 농지로 등록",
+  "tooltip.agrieconomy.admin_tool":        "우클릭: 농지 등록 / Shift+우클릭: 소유자 변경 / 좌클릭: 농지 제거",
+  "tooltip.agrieconomy.pesticide_block":   "병충해(PEST) 재해를 1회 방어합니다. 1회용.",
+  "tooltip.agrieconomy.irrigation_block":  "가뭄(DROUGHT) 재해를 1회 방어합니다. 1회용.",
+  "tooltip.agrieconomy.greenhouse_block":  "냉해(COLD) 재해를 1회 방어합니다. 1회용.",
+
+  "death.attack.agrieconomy.disaster": "%1$s 이(가) 재해로 쓰러졌습니다"
+}

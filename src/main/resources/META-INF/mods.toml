@@ -1,0 +1,26 @@
+modLoader="javafml"
+loaderVersion="[47,)"
+license="MIT"
+
+[[mods]]
+modId="agrieconomy"
+version="1.0.0"
+displayName="Agri Economy"
+description='''
+농업 경제 통합 모드.
+작물 등급, 동적 거래소, 납품 퀘스트, 농지·재해 시스템을 제공합니다.
+'''
+
+[[dependencies.agrieconomy]]
+modId="forge"
+mandatory=true
+versionRange="[47,)"
+ordering="NONE"
+side="BOTH"
+
+[[dependencies.agrieconomy]]
+modId="minecraft"
+mandatory=true
+versionRange="[1.20.1,1.21)"
+ordering="NONE"
+side="BOTH"

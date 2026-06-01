@@ -1,0 +1,27 @@
+{
+  "block.agrieconomy.market_block":     "Agri Market",
+  "block.agrieconomy.delivery_block":   "Delivery Station",
+  "block.agrieconomy.pesticide_block":  "Pesticide Sprayer",
+  "block.agrieconomy.irrigation_block": "Irrigation Device",
+  "block.agrieconomy.greenhouse_block": "Greenhouse Unit",
+
+  "item.agrieconomy.market_block":      "Agri Market",
+  "item.agrieconomy.delivery_block":    "Delivery Station",
+  "item.agrieconomy.pesticide_block":   "Pesticide Sprayer",
+  "item.agrieconomy.irrigation_block":  "Irrigation Device",
+  "item.agrieconomy.greenhouse_block":  "Greenhouse Unit",
+  "item.agrieconomy.farmland_register": "Farmland Register",
+  "item.agrieconomy.admin_tool":        "Admin Tool",
+
+  "gui.agrieconomy.market":             "Agri Market",
+  "gui.agrieconomy.delivery":           "Delivery Status",
+  "gui.agrieconomy.delivery_admin":     "Delivery Settings (Admin)",
+
+  "itemGroup.agrieconomy.main":         "Agri Economy",
+
+  "tooltip.agrieconomy.farmland_register": "Right-click: Register current chunk as farmland",
+  "tooltip.agrieconomy.admin_tool":        "Right-click: Register / Shift+Right: Change owner / Left: Remove farmland",
+  "tooltip.agrieconomy.pesticide_block":   "Blocks PEST disaster once. Single use.",
+  "tooltip.agrieconomy.irrigation_block":  "Blocks DROUGHT disaster once. Single use.",
+  "tooltip.agrieconomy.greenhouse_block":  "Blocks COLD disaster once. Single use."
+}
