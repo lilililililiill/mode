@@ -48,6 +48,10 @@ public class PacketHandler {
                 C2SAdminSavePacket::encode, C2SAdminSavePacket::decode, C2SAdminSavePacket::handle,
                 java.util.Optional.of(NetworkDirection.PLAY_TO_SERVER));
 
+        CHANNEL.registerMessage(id++, C2SMarketAdminPacket.class,
+                C2SMarketAdminPacket::encode, C2SMarketAdminPacket::decode, C2SMarketAdminPacket::handle,
+                java.util.Optional.of(NetworkDirection.PLAY_TO_SERVER));
+
         // S2C
         CHANNEL.registerMessage(id++, S2CMarketSyncPacket.class,
                 S2CMarketSyncPacket::encode, S2CMarketSyncPacket::decode, S2CMarketSyncPacket::handle,
