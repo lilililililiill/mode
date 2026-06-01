@@ -8,18 +8,19 @@ import net.minecraft.nbt.Tag;
 import net.minecraft.network.chat.Component;
 import net.minecraft.server.MinecraftServer;
 import net.minecraft.server.level.ServerLevel;
+import net.minecraft.server.level.ServerPlayer;
+import net.minecraft.world.entity.player.Inventory;
+import net.minecraft.world.item.ItemStack;
 import net.minecraft.world.level.saveddata.SavedData;
 
+import java.util.ArrayList;
 import java.util.HashMap;
+import java.util.List;
 import java.util.Map;
 import java.util.Random;
 
 /**
  * 납품 블록 위치별 퀘스트 데이터를 관리한다.
- *
- * <p>자동 활성화는 서버 레벨 틱이 아닌
- * {@link #tryAutoActivate(ServerLevel, BlockPos)} 를 외부에서 호출하는 방식으로 동작한다.
- * (틱 기반 전체 월드 검사 금지 원칙 준수)</p>
  */
 public class DeliveryManager extends SavedData {
 
@@ -30,16 +31,12 @@ public class DeliveryManager extends SavedData {
 
     private final Random random = new Random();
 
-    // ── 싱글턴 접근 ──────────────────────────────────────────────────
-
     public static DeliveryManager get(ServerLevel level) {
         return level.getServer()
                 .overworld()
                 .getDataStorage()
                 .computeIfAbsent(DeliveryManager::load, DeliveryManager::new, DATA_NAME);
     }
-
-    // ── 퀘스트 관리 ───────────────────────────────────────────────────
 
     public void setQuest(BlockPos pos, DeliveryQuest quest) {
         quests.put(pos.immutable(), quest);
@@ -55,38 +52,113 @@ public class DeliveryManager extends SavedData {
         setDirty();
     }
 
-    // ── 납품 처리 ─────────────────────────────────────────────────────
-
     /**
-     * 플레이어의 납품을 처리한다.
-     *
-     * @return DeliveryResult: 결과 상태와 보상 정보
+     * 플레이어 인벤토리에서 요구품을 소모해 납품을 처리한다.
      */
-    public DeliveryResult processDelivery(ServerLevel level, BlockPos pos,
-                                           String itemId, int amount) {
+    public DeliveryResult processDelivery(ServerLevel level, BlockPos pos, ServerPlayer player,
+                                          int requiredSelection, int rewardSelection) {
         DeliveryQuest quest = quests.get(pos);
         if (quest == null || !quest.isActive()) return DeliveryResult.INACTIVE;
-        if (!quest.getRequiredItem().equals(itemId)) return DeliveryResult.WRONG_ITEM;
+        if (quest.getRequiredStacks().isEmpty()) return DeliveryResult.INACTIVE;
 
-        boolean completed = quest.deliver(amount);
+        boolean consumedAny = false;
+
+        if (quest.getRequirementMode() == DeliveryQuest.RequirementMode.OR) {
+            if (requiredSelection < 0 || requiredSelection >= quest.getRequiredStacks().size()) {
+                return DeliveryResult.INVALID_SELECTION;
+            }
+            quest.setSelectedRequirementIndex(requiredSelection);
+            ItemStack req = quest.getRequiredStacks().get(requiredSelection);
+            int need = req.getCount() - quest.getDeliveredCountForIndex(requiredSelection);
+            if (need > 0) {
+                int consumed = consumeFromInventory(player.getInventory(), req, need);
+                if (consumed > 0) {
+                    consumedAny = true;
+                    quest.addDeliveredForIndex(requiredSelection, consumed);
+                }
+            }
+        } else {
+            for (int i = 0; i < quest.getRequiredStacks().size(); i++) {
+                ItemStack req = quest.getRequiredStacks().get(i);
+                int need = req.getCount() - quest.getDeliveredCountForIndex(i);
+                if (need <= 0) continue;
+                int consumed = consumeFromInventory(player.getInventory(), req, need);
+                if (consumed > 0) {
+                    consumedAny = true;
+                    quest.addDeliveredForIndex(i, consumed);
+                }
+            }
+        }
+
+        if (!consumedAny) {
+            return DeliveryResult.INSUFFICIENT_ITEMS;
+        }
+
         setDirty();
 
-        if (completed) {
-            DeliveryResult result = DeliveryResult.completed(
-                    quest.getRewardItem(), quest.getRewardAmount());
+        if (quest.isCompleted()) {
+            List<ItemStack> rewardsToGive = resolveRewards(quest, rewardSelection);
+            if (rewardsToGive == null) return DeliveryResult.INVALID_SELECTION;
+
+            for (ItemStack reward : rewardsToGive) {
+                if (reward.isEmpty()) continue;
+                ItemStack remaining = reward.copy();
+                player.addItem(remaining);
+                if (!remaining.isEmpty()) {
+                    player.drop(remaining, false);
+                }
+            }
+
             quest.reset();
             setDirty();
-            return result;
+            return DeliveryResult.completed(rewardsToGive);
         }
-        return DeliveryResult.progress(quest.getDeliveredAmount(), quest.getRequiredAmount());
+
+        return DeliveryResult.progress(quest.getTotalDeliveredAmount(), quest.getTotalRequiredAmount());
     }
 
-    // ── 자동 활성화 ───────────────────────────────────────────────────
+    private List<ItemStack> resolveRewards(DeliveryQuest quest, int rewardSelection) {
+        List<ItemStack> rewards = quest.getRewardStacks();
+        if (rewards.isEmpty()) return List.of();
 
-    /**
-     * 해당 블록의 퀘스트 자동 활성화를 시도한다.
-     * 호출 시점은 외부(예: 플레이어 접근 이벤트 또는 게임 이벤트)에서 결정한다.
-     */
+        if (quest.getRewardMode() == DeliveryQuest.RewardMode.CHOICE) {
+            if (rewardSelection < 0 || rewardSelection >= rewards.size()) return null;
+            return List.of(rewards.get(rewardSelection).copy());
+        }
+
+        List<ItemStack> all = new ArrayList<>();
+        for (ItemStack stack : rewards) all.add(stack.copy());
+        return all;
+    }
+
+    private int consumeFromInventory(Inventory inv, ItemStack required, int maxConsume) {
+        if (maxConsume <= 0 || required.isEmpty()) return 0;
+
+        int remaining = maxConsume;
+
+        for (int i = 0; i < inv.items.size() && remaining > 0; i++) {
+            ItemStack stack = inv.items.get(i);
+            if (!ItemStack.isSameItemSameTags(stack, required)) continue;
+
+            int take = Math.min(stack.getCount(), remaining);
+            stack.shrink(take);
+            remaining -= take;
+        }
+
+        for (int i = 0; i < inv.offhand.size() && remaining > 0; i++) {
+            ItemStack stack = inv.offhand.get(i);
+            if (!ItemStack.isSameItemSameTags(stack, required)) continue;
+
+            int take = Math.min(stack.getCount(), remaining);
+            stack.shrink(take);
+            remaining -= take;
+        }
+
+        int consumed = maxConsume - remaining;
+        if (consumed > 0) inv.setChanged();
+        return consumed;
+    }
+
     public boolean tryAutoActivate(ServerLevel level, BlockPos pos) {
         DeliveryQuest quest = quests.get(pos);
         if (quest == null || quest.isActive() || !quest.isAutoEnabled()) return false;
@@ -98,7 +170,6 @@ public class DeliveryManager extends SavedData {
         quest.setStartTick(level.getGameTime());
         setDirty();
 
-        // 전체 채팅 공지
         MinecraftServer server = level.getServer();
         if (server != null) {
             server.getPlayerList().broadcastSystemMessage(
@@ -108,8 +179,6 @@ public class DeliveryManager extends SavedData {
         }
         return true;
     }
-
-    // ── 수동 활성화 (관리자) ──────────────────────────────────────────
 
     public boolean manualActivate(ServerLevel level, BlockPos pos) {
         DeliveryQuest quest = quests.get(pos);
@@ -129,16 +198,14 @@ public class DeliveryManager extends SavedData {
         return true;
     }
 
-    // ── NBT 직렬화 ────────────────────────────────────────────────────
-
     @Override
     public CompoundTag save(CompoundTag tag) {
         ListTag list = new ListTag();
         for (Map.Entry<BlockPos, DeliveryQuest> entry : quests.entrySet()) {
-            CompoundTag entry_tag = new CompoundTag();
-            entry_tag.put("pos", NbtUtils.writeBlockPos(entry.getKey()));
-            entry_tag.put("quest", entry.getValue().toNBT());
-            list.add(entry_tag);
+            CompoundTag entryTag = new CompoundTag();
+            entryTag.put("pos", NbtUtils.writeBlockPos(entry.getKey()));
+            entryTag.put("quest", entry.getValue().toNBT());
+            list.add(entryTag);
         }
         tag.put("quests", list);
         return tag;
@@ -148,9 +215,9 @@ public class DeliveryManager extends SavedData {
         DeliveryManager manager = new DeliveryManager();
         ListTag list = tag.getList("quests", Tag.TAG_COMPOUND);
         for (int i = 0; i < list.size(); i++) {
-            CompoundTag entry_tag = list.getCompound(i);
-            BlockPos pos   = NbtUtils.readBlockPos(entry_tag.getCompound("pos"));
-            DeliveryQuest q = DeliveryQuest.fromNBT(entry_tag.getCompound("quest"));
+            CompoundTag entryTag = list.getCompound(i);
+            BlockPos pos = NbtUtils.readBlockPos(entryTag.getCompound("pos"));
+            DeliveryQuest q = DeliveryQuest.fromNBT(entryTag.getCompound("quest"));
             manager.quests.put(pos, q);
         }
         return manager;

@@ -3,7 +3,9 @@ package com.agrieconomy.market;
 import net.minecraft.nbt.CompoundTag;
 import net.minecraft.nbt.ListTag;
 import net.minecraft.nbt.Tag;
+import net.minecraft.core.registries.BuiltInRegistries;
 import net.minecraft.server.level.ServerLevel;
+import net.minecraft.world.item.ItemStack;
 import net.minecraft.world.level.saveddata.SavedData;
 
 import java.util.Collection;
@@ -13,16 +15,13 @@ import java.util.Map;
 
 /**
  * 거래소 전체 품목을 관리한다.
- * WorldSavedData를 이용해 서버 재시작 후에도 데이터가 유지된다.
  */
 public class MarketManager extends SavedData {
 
     private static final String DATA_NAME = "agrieconomy_market";
 
-    /** itemId → MarketEntry */
+    /** stack key → MarketEntry */
     private final Map<String, MarketEntry> entries = new LinkedHashMap<>();
-
-    // ── 싱글턴 접근 ──────────────────────────────────────────────────
 
     public static MarketManager get(ServerLevel level) {
         return level.getServer()
@@ -31,39 +30,29 @@ public class MarketManager extends SavedData {
                 .computeIfAbsent(MarketManager::load, MarketManager::new, DATA_NAME);
     }
 
-    // ── CRUD ─────────────────────────────────────────────────────────
-
-    public void addEntry(String itemId, int basePrice, int minPrice, int maxPrice) {
-        entries.put(itemId, new MarketEntry(itemId, basePrice, minPrice, maxPrice));
+    public void addEntry(ItemStack tradedStack, int basePrice, int minPrice, int maxPrice) {
+        ItemStack keyStack = tradedStack.copy();
+        if (keyStack.isEmpty()) return;
+        entries.put(keyForStack(keyStack), new MarketEntry(keyStack, basePrice, minPrice, maxPrice));
         setDirty();
     }
 
-    public boolean removeEntry(String itemId) {
-        boolean removed = entries.remove(itemId) != null;
+    public boolean removeEntry(ItemStack tradedStack) {
+        boolean removed = entries.remove(keyForStack(tradedStack)) != null;
         if (removed) setDirty();
         return removed;
     }
 
-    public MarketEntry getEntry(String itemId) {
-        return entries.get(itemId);
+    public MarketEntry getEntry(ItemStack tradedStack) {
+        return entries.get(keyForStack(tradedStack));
     }
 
     public Collection<MarketEntry> getAllEntries() {
         return Collections.unmodifiableCollection(entries.values());
     }
 
-    public boolean hasEntry(String itemId) {
-        return entries.containsKey(itemId);
-    }
-
-    // ── 판매 처리 ─────────────────────────────────────────────────────
-
-    /**
-     * 아이템 판매. 등급 배율을 적용한 실제 획득 금액을 반환한다.
-     * 등록되지 않은 아이템이면 -1 반환.
-     */
-    public int sell(String itemId, int amount, float gradeMultiplier) {
-        MarketEntry entry = entries.get(itemId);
+    public int sell(ItemStack soldStack, int amount, float gradeMultiplier) {
+        MarketEntry entry = entries.get(keyForStack(soldStack));
         if (entry == null) return -1;
 
         int revenue = (int) (entry.getCurrentPrice() * amount * gradeMultiplier);
@@ -71,8 +60,6 @@ public class MarketManager extends SavedData {
         setDirty();
         return revenue;
     }
-
-    // ── WorldSavedData 직렬화 ─────────────────────────────────────────
 
     @Override
     public CompoundTag save(CompoundTag tag) {
@@ -89,8 +76,13 @@ public class MarketManager extends SavedData {
         ListTag list = tag.getList("entries", Tag.TAG_COMPOUND);
         for (int i = 0; i < list.size(); i++) {
             MarketEntry entry = MarketEntry.fromNBT(list.getCompound(i));
-            manager.entries.put(entry.getItemId(), entry);
+            manager.entries.put(keyForStack(entry.getTradedStack()), entry);
         }
         return manager;
+    }
+
+    public static String keyForStack(ItemStack stack) {
+        if (stack.isEmpty()) return "";
+        return BuiltInRegistries.ITEM.getKey(stack.getItem()) + "|" + (stack.hasTag() ? stack.getTag().toString() : "");
     }
 }
